@@ -1,4 +1,16 @@
 import datetime
+import requests
+import pandas as pd
+import pytz
+import streamlit as st
+import발생할 수 있는 오류의 원인은 크게 세 가지입니다. 코드를 복사하는 과정에서 **눈에 보이지 않는 특수 공백(NBSP)**이 섞여 들어가 파이썬 문법 오류(IndentationError)가 발생했거나, 새로 추가된 **`plotly` 라이브러리가 설치되지 않았을 경우**, 또는 **API 키가 잘못되었을 때의 예외 처리**가 누락되어 엉뚱한 에러가 났을 가능성이 높습니다.
+
+이 문제들을 모두 해결하고, 복사-붙여넣기 시 공백 문자가 깨지지 않도록 정제한 전체 코드입니다.
+
+### 1. `main.py` 전체 코드
+
+```python
+import datetime
 import json
 import requests
 import pandas as pd
@@ -113,7 +125,7 @@ st.markdown(f"### 🎟️ **{display_date_str}** 상영 현황")
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office(key: str, target_dt: str):
-    url = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
+    url = "[https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json](https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json)"
     params = {"key": key, "targetDt": target_dt}
     try:
         res = requests.get(url, params=params, timeout=10)
@@ -126,6 +138,12 @@ data = fetch_box_office(api_key, target_date_str)
 
 if "error" in data:
     st.error("❌ 통신 오류가 발생했습니다.")
+    st.stop()
+
+# API 인증 오류 방어 코드 추가
+if "faultInfo" in data:
+    st.error("❌ API 응답 오류가 발생했습니다. (인증키 오류 가능성)")
+    st.warning(f"⚠️ 오류 메시지: {data['faultInfo'].get('message', '알 수 없는 오류')}")
     st.stop()
 
 if not data.get("boxOfficeResult", {}).get("dailyBoxOfficeList"):
@@ -161,7 +179,7 @@ with col3: st.metric("상영 스크린수", f"{top_movie['scrnCnt']:,} 개")
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 5. [수정됨] 마우스 스크롤(줌) 방지 및 Plotly 기반 그래프 생성
+# 5. 마우스 스크롤(줌) 방지 및 Plotly 기반 그래프 생성
 # -----------------------------------------------------------------------------
 st.subheader("📊 선택일 상위 5개 영화 관객수 비교 (1위에 마우스를 올려보세요!)")
 
@@ -225,9 +243,8 @@ for col in ["관객수(명)", "누적관객(명)", "스크린수(개)"]:
 st.dataframe(formatted_df, use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. [신규] 1위 영화 마우스 호버 시 사이드 폭죽(트로피) 효과 Javascript 주입
+# 7. 1위 영화 마우스 호버 시 사이드 폭죽(트로피) 효과 Javascript 주입
 # -----------------------------------------------------------------------------
-# 1위 영화명을 안전하게 JSON 문자열로 변환 (따옴표 오류 방지)
 top_movie_name_json = json.dumps(top_movie["movieNm"])
 
 js_code = f"""
@@ -237,7 +254,6 @@ js_code = f"""
     
     function checkHover() {{
         if (isAnimating) return;
-        // Plotly 툴팁 텍스트 요소 검색
         const tooltips = parent.querySelectorAll('g.hovertext text');
         let found = false;
         tooltips.forEach(t => {{
@@ -249,16 +265,13 @@ js_code = f"""
         if (found) {{
             isAnimating = true;
             showFireworks();
-            // 2초 뒤에 다시 애니메이션 트리거 가능하도록 설정
             setTimeout(() => {{ isAnimating = false; }}, 2000); 
         }}
     }}
     
-    // 0.15초 주기로 마우스 호버 상태 확인
     setInterval(checkHover, 150);
     
     function showFireworks() {{
-        // 좌측에서 솟아오르는 트로피
         const leftTrophy = parent.createElement('div');
         leftTrophy.innerHTML = "🏆";
         leftTrophy.style.position = 'fixed';
@@ -269,7 +282,6 @@ js_code = f"""
         leftTrophy.style.pointerEvents = 'none';
         leftTrophy.style.animation = 'shootLeftTrophy 1s cubic-bezier(0.25, 1, 0.5, 1) forwards';
         
-        // 우측에서 솟아오르는 트로피
         const rightTrophy = parent.createElement('div');
         rightTrophy.innerHTML = "🏆";
         rightTrophy.style.position = 'fixed';
@@ -297,7 +309,6 @@ js_code = f"""
         parent.body.appendChild(leftTrophy);
         parent.body.appendChild(rightTrophy);
         
-        // 1.1초 뒤 사용된 요소 제거
         setTimeout(() => {{
             leftTrophy.remove();
             rightTrophy.remove();
