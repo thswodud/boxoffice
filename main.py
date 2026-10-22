@@ -1,23 +1,10 @@
 import datetime
-import requests
-import pandas as pd
-import pytz
-import streamlit as st
-import발생할 수 있는 오류의 원인은 크게 세 가지입니다. 코드를 복사하는 과정에서 **눈에 보이지 않는 특수 공백(NBSP)**이 섞여 들어가 파이썬 문법 오류(IndentationError)가 발생했거나, 새로 추가된 **`plotly` 라이브러리가 설치되지 않았을 경우**, 또는 **API 키가 잘못되었을 때의 예외 처리**가 누락되어 엉뚱한 에러가 났을 가능성이 높습니다.
-
-이 문제들을 모두 해결하고, 복사-붙여넣기 시 공백 문자가 깨지지 않도록 정제한 전체 코드입니다.
-
-### 1. `main.py` 전체 코드
-
-```python
-import datetime
 import json
 import requests
 import pandas as pd
 import pytz
 import streamlit as st
-import streamlit.components.v1 as components
-import plotly.express as px
+import altair as alt
 
 # -----------------------------------------------------------------------------
 # 페이지 기본 설정
@@ -29,75 +16,148 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 영화관 테마 Custom CSS (클래식 레드 커튼 & 골드 폰트)
+# 영화관 테마(버건디/레드 카펫) AI 배경 및 폭죽 애니메이션 CSS 적용
 # -----------------------------------------------------------------------------
-st.markdown("""
+BACKGROUND_IMAGE_URL = "https://lh3.googleusercontent.com/gg/AAY1a9qPThfL_0L-EaQ-pGz5Y1B52iG5bW_10285800603"
+
+st.markdown(f"""
 <style>
-    /* 전체 배경: 고급스러운 붉은 벨벳 커튼 느낌의 그라데이션 */
-    .stApp {
-        background: linear-gradient(180deg, #4a0404 0%, #2b0000 50%, #120000 100%);
-        color: #fce38a;
-    }
+    /* 전체 배경: 어두운 검정 대신 영화관을 연상시키는 벨벳 레드/버건디 오버레이 적용 */
+    .stApp {{
+        background: linear-gradient(rgba(100, 15, 25, 0.7), rgba(40, 5, 10, 0.85)),
+                    url('{BACKGROUND_IMAGE_URL}');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        color: #fdf5e6;
+    }}
     
-    /* 배경에 커튼 주름 패턴 효과 추가 */
-    .stApp::before {
-        content: "";
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: repeating-linear-gradient(
-            to right,
-            transparent,
-            transparent 50px,
-            rgba(0,0,0,0.15) 50px,
-            rgba(0,0,0,0.15) 100px
-        );
-        pointer-events: none;
-        z-index: -1;
-    }
+    /* 제목 및 주요 헤더를 영화관 간판 같은 골드 톤으로 강조 */
+    h1, h2, h3 {{
+        color: #fce38a !important;
+        font-family: 'Pretendard', sans-serif;
+        text-shadow: 2px 2px 5px rgba(0,0,0,0.6);
+    }}
     
-    /* 제목 및 헤더를 클래식 시네마 스타일로 변경 */
-    h1, h2, h3 {
-        color: #ffd700 !important;
-        font-family: 'Georgia', serif;
-        text-shadow: 2px 2px 8px rgba(0,0,0,0.9);
-        text-align: center;
-    }
-    
-    /* 지표 카드 디자인 */
-    div[data-testid="stMetric"] {
-        background: rgba(40, 5, 5, 0.85);
-        border: 2px solid #8c1c1c;
+    /* 지표 카드 투명도 및 테두리 (레드&골드) */
+    div[data-testid="stMetric"] {{
+        background: rgba(80, 15, 25, 0.6);
+        border: 1px solid rgba(252, 227, 138, 0.5);
         border-radius: 12px;
         padding: 15px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
-    }
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(5px);
+    }}
     
-    /* 데이터프레임/표 스타일 */
-    div[data-testid="stDataFrame"] {
-        background: rgba(20, 0, 0, 0.8);
+    /* 데이터프레임 표 스타일 (버건디 배경) */
+    div[data-testid="stDataFrame"] {{
+        background: rgba(60, 10, 20, 0.75);
         border-radius: 10px;
-        border: 1px solid #ffd700;
-    }
+        border: 1px solid rgba(252, 227, 138, 0.3);
+        backdrop-filter: blur(5px);
+    }}
     
-    /* 달력 입력기 다크레드 톤 맞춤 */
-    .stDateInput > div {
-        background-color: #2b0000 !important;
-        color: #ffd700 !important;
+    /* 달력 위젯 스타일 */
+    .stDateInput > div {{
+        background-color: rgba(90, 20, 30, 0.85) !important;
+        color: #ffffff !important;
         border-radius: 8px;
-        border: 1px solid #ffd700;
-    }
+        border: 1px solid #d4af37;
+    }}
+    
+    /* 커스텀 HTML 막대그래프 전용 스타일 */
+    .cinema-bar-chart {{
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-end;
+        height: 350px;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 20px 10px;
+        border-radius: 10px;
+        border-bottom: 3px solid #d4af37;
+        position: relative;
+    }}
+    .cinema-bar-wrapper {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 18%;
+        height: 100%;
+        justify-content: flex-end;
+    }}
+    .cinema-bar {{
+        width: 100%;
+        background: linear-gradient(to top, #a61b29, #ff4500);
+        border-radius: 6px 6px 0 0;
+        transition: transform 0.2s, filter 0.2s;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+        position: relative;
+    }}
+    .cinema-bar:hover {{
+        transform: scaleY(1.03);
+        filter: brightness(1.3);
+        cursor: pointer;
+    }}
+    .bar-value {{
+        color: #fff; font-weight: bold; font-size: 0.9rem; margin-bottom: 5px;
+    }}
+    .bar-label {{
+        color: #fce38a; font-size: 0.85rem; margin-top: 10px; text-align: center; word-break: keep-all; height: 40px;
+    }}
+    
+    /* 1위 막대 호버 시 작동할 폭죽 효과 컨테이너 */
+    .fireworks-overlay {{
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        pointer-events: none;
+        z-index: 999999;
+        display: none; /* 기본은 숨김 */
+    }}
+    
+    /* .highest-bar(최고 막대)에 마우스를 올리면 폭죽 오버레이 표시 */
+    .highest-bar:hover ~ .fireworks-overlay {{
+        display: block;
+    }}
+    
+    /* 폭죽 파티클(트로피) 애니메이션 설정 */
+    .trophy-particle {{
+        position: absolute;
+        top: 50%; left: 50%;
+        font-size: 4rem;
+        opacity: 0;
+    }}
+    
+    /* 1초 동안만 사방으로 터지고 사라지는 애니메이션 (forwards로 종료 상태 유지) */
+    .highest-bar:hover ~ .fireworks-overlay .p1 {{ animation: pop1 1s ease-out forwards; }}
+    .highest-bar:hover ~ .fireworks-overlay .p2 {{ animation: pop2 1s ease-out forwards; }}
+    .highest-bar:hover ~ .fireworks-overlay .p3 {{ animation: pop3 1s ease-out forwards; }}
+    .highest-bar:hover ~ .fireworks-overlay .p4 {{ animation: pop4 1s ease-out forwards; }}
+    .highest-bar:hover ~ .fireworks-overlay .p5 {{ animation: pop5 1s ease-out forwards; }}
+    
+    @keyframes pop1 {{ 0% {{ transform: translate(0, 0) scale(0.5); opacity: 1; }} 100% {{ transform: translate(-30vw, -40vh) scale(2.5) rotate(-45deg); opacity: 0; }} }}
+    @keyframes pop2 {{ 0% {{ transform: translate(0, 0) scale(0.5); opacity: 1; }} 100% {{ transform: translate(30vw, -40vh) scale(2.5) rotate(45deg); opacity: 0; }} }}
+    @keyframes pop3 {{ 0% {{ transform: translate(0, 0) scale(0.5); opacity: 1; }} 100% {{ transform: translate(-40vw, 10vh) scale(2.5) rotate(-90deg); opacity: 0; }} }}
+    @keyframes pop4 {{ 0% {{ transform: translate(0, 0) scale(0.5); opacity: 1; }} 100% {{ transform: translate(40vw, 10vh) scale(2.5) rotate(90deg); opacity: 0; }} }}
+    @keyframes pop5 {{ 0% {{ transform: translate(0, 0) scale(0.5); opacity: 1; }} 100% {{ transform: translate(0, -50vh) scale(3); opacity: 0; }} }}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🍿 클래식 시네마 박스오피스")
-st.markdown("### 영화진흥위원회(KOBIS) 일별 상영 현황")
+st.title("🍿 시네마 일별 박스오피스")
+st.caption("영화진흥위원회(KOBIS) Open API 기반 박스오피스 조회 앱")
 
 # -----------------------------------------------------------------------------
 # 1. API 키 검증 (Streamlit Secrets)
 # -----------------------------------------------------------------------------
 if "KOBIS_KEY" not in st.secrets or not st.secrets["KOBIS_KEY"]:
-    st.error("❌ 비밀 금고(secrets)에 'KOBIS_KEY'가 없습니다.")
+    st.error("❌ 비밀 금고(secrets)에서 'KOBIS_KEY'를 찾을 수 없거나 값이 비어 있습니다.")
+    st.info(
+        "💡 **확인 및 해결 방법:**\n"
+        "1. Streamlit Cloud 앱 설정 화면의 **Secrets** 메뉴로 이동하세요.\n"
+        "2. 아래 형식으로 발급받은 KOBIS API 키를 등록해 주세요:\n\n"
+        '```toml\nKOBIS_KEY = "발급받은_키_문자열"\n```'
+    )
     st.stop()
+
 api_key = st.secrets["KOBIS_KEY"]
 
 # -----------------------------------------------------------------------------
@@ -109,7 +169,7 @@ yesterday_date = (now_kst - datetime.timedelta(days=1)).date()
 min_date = datetime.date(2004, 1, 1)
 
 selected_date = st.date_input(
-    label="📅 조회할 날짜 선택 (최대 어제까지)",
+    label="📅 조회할 날짜를 선택하세요 (최대 어제까지 가능)",
     value=yesterday_date,
     min_value=min_date,
     max_value=yesterday_date
@@ -121,11 +181,11 @@ display_date_str = selected_date.strftime("%Y년 %m월 %d일")
 st.markdown(f"### 🎟️ **{display_date_str}** 상영 현황")
 
 # -----------------------------------------------------------------------------
-# 3. KOBIS API 데이터 호출 함수
+# 3. KOBIS API 데이터 가져오기
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office(key: str, target_dt: str):
-    url = "[https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json](https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json)"
+    url = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
     params = {"key": key, "targetDt": target_dt}
     try:
         res = requests.get(url, params=params, timeout=10)
@@ -137,20 +197,21 @@ def fetch_box_office(key: str, target_dt: str):
 data = fetch_box_office(api_key, target_date_str)
 
 if "error" in data:
-    st.error("❌ 통신 오류가 발생했습니다.")
+    st.error("❌ API 서버와의 통신 중 오류가 발생했습니다.")
     st.stop()
-
-# API 인증 오류 방어 코드 추가
 if "faultInfo" in data:
-    st.error("❌ API 응답 오류가 발생했습니다. (인증키 오류 가능성)")
-    st.warning(f"⚠️ 오류 메시지: {data['faultInfo'].get('message', '알 수 없는 오류')}")
+    st.error("❌ API 응답 오류가 발생했습니다 (인증키 오류 가능성).")
     st.stop()
 
-if not data.get("boxOfficeResult", {}).get("dailyBoxOfficeList"):
+daily_list = data.get("boxOfficeResult", {}).get("dailyBoxOfficeList", [])
+if not daily_list:
     st.warning("⚠️ 그날은 아직 집계 전입니다.")
     st.stop()
 
-df = pd.DataFrame(data["boxOfficeResult"]["dailyBoxOfficeList"])
+# -----------------------------------------------------------------------------
+# 4. 선택일 데이터 전처리
+# -----------------------------------------------------------------------------
+df = pd.DataFrame(daily_list)
 numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt", "showCnt"]
 for col in numeric_cols:
     if col in df.columns:
@@ -159,12 +220,12 @@ for col in numeric_cols:
 def format_rank_change(val):
     if val > 0: return f"🔺 {val}"
     elif val < 0: return f"🔹 {abs(val)}"
-    return "-"
+    else: return "-"
 
 df["rankChange"] = df["rankInten"].apply(format_rank_change)
 
 # -----------------------------------------------------------------------------
-# 4. 1위 영화 지표 출력
+# 5. 1위 영화 지표 카드
 # -----------------------------------------------------------------------------
 top_movie = df.iloc[0]
 
@@ -172,63 +233,97 @@ st.divider()
 st.subheader(f"🥇 1위 영화: {top_movie['movieNm']}")
 
 col1, col2, col3 = st.columns(3)
-with col1: st.metric("당일 관객수", f"{top_movie['audiCnt']:,} 명")
-with col2: st.metric("누적 관객수", f"{top_movie['audiAcc']:,} 명")
-with col3: st.metric("상영 스크린수", f"{top_movie['scrnCnt']:,} 개")
+with col1:
+    st.metric(label="당일 관객수", value=f"{top_movie['audiCnt']:,} 명")
+with col2:
+    st.metric(label="누적 관객수", value=f"{top_movie['audiAcc']:,} 명")
+with col3:
+    st.metric(label="상영 스크린수", value=f"{top_movie['scrnCnt']:,} 개")
 
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 5. 마우스 스크롤(줌) 방지 및 Plotly 기반 그래프 생성
+# 6. 최근 7일간 추이 꺾은선 그래프 (스크롤 줌(Zoom) 문제 해결을 위해 Altair 사용)
 # -----------------------------------------------------------------------------
-st.subheader("📊 선택일 상위 5개 영화 관객수 비교 (1위에 마우스를 올려보세요!)")
-
-top_5_df = df.head(5).copy()
-
-# 막대 그래프 (스크롤 불가 설정)
-fig_bar = px.bar(top_5_df, x="movieNm", y="audiCnt", text="audiCnt")
-fig_bar.update_layout(
-    plot_bgcolor="rgba(0,0,0,0)",
-    paper_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#fce38a"),
-    xaxis_title="영화명",
-    yaxis_title="관객수",
-)
-fig_bar.update_traces(textposition="outside", marker_color="#d62828")
-st.plotly_chart(fig_bar, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
-
-st.divider()
-
-st.subheader("📈 상위 5개 영화 최근 7일 관객수 추이")
+st.subheader("📈 상위 5개 영화의 최근 7일 관객수 추이")
 
 top_5_titles = df.head(5)["movieNm"].tolist()
 past_7_dates = [selected_date - datetime.timedelta(days=i) for i in range(6, -1, -1)]
 
 trend_records = []
 for p_date in past_7_dates:
-    p_data = fetch_box_office(api_key, p_date.strftime("%Y%m%d"))
-    p_df = pd.DataFrame(p_data.get("boxOfficeResult", {}).get("dailyBoxOfficeList", []))
-    if not p_df.empty:
+    p_date_str = p_date.strftime("%Y%m%d")
+    p_data = fetch_box_office(api_key, p_date_str)
+    p_list = p_data.get("boxOfficeResult", {}).get("dailyBoxOfficeList", [])
+    p_df = pd.DataFrame(p_list)
+    date_label = p_date.strftime("%m/%d")
+    
+    if not p_df.empty and "movieNm" in p_df.columns:
         p_df["audiCnt"] = pd.to_numeric(p_df["audiCnt"], errors="coerce").fillna(0).astype(int)
-        filtered = p_df[p_df["movieNm"].isin(top_5_titles)]
-        for _, row in filtered.iterrows():
-            trend_records.append({"날짜": p_date.strftime("%m/%d"), "영화명": row["movieNm"], "관객수": row["audiCnt"]})
+        filtered_p = p_df[p_df["movieNm"].isin(top_5_titles)]
+        for _, row in filtered_p.iterrows():
+            trend_records.append({
+                "날짜": date_label,
+                "영화명": row["movieNm"],
+                "관객수": row["audiCnt"]
+            })
 
 if trend_records:
     trend_df = pd.DataFrame(trend_records)
-    # 선 그래프 (스크롤 불가 설정)
-    fig_line = px.line(trend_df, x="날짜", y="관객수", color="영화명", markers=True)
-    fig_line.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#fce38a")
-    )
-    st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
+    
+    # Altair를 이용해 인터랙티브 요소를 제어 (스크롤로 줌 인/아웃되는 현상 방지)
+    line_chart = alt.Chart(trend_df).mark_line(point=True).encode(
+        x=alt.X("날짜:O", sort=None, title="날짜"),
+        y=alt.Y("관객수:Q", title="관객수(명)"),
+        color=alt.Color("영화명:N", title="영화명"),
+        tooltip=["날짜", "영화명", "관객수"]
+    ).properties(height=400)
+    
+    st.altair_chart(line_chart, use_container_width=True)
 
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 6. 표 출력
+# 7. 관객수 상위 5편 커스텀 막대그래프 (1위 막대 호버 시 트로피 폭죽 효과)
+# -----------------------------------------------------------------------------
+st.subheader("📊 선택일 상위 5개 영화 관객수 비교 (1위 막대에 마우스를 올려보세요!)")
+
+top_5_df = df.head(5).copy()
+max_audi = top_5_df["audiCnt"].max()
+
+# HTML 문자열 조립: 1위 막대에만 'highest-bar' 클래스 부여
+html_chart = '<div class="cinema-bar-chart">'
+
+for idx, row in top_5_df.iterrows():
+    height_pct = (row["audiCnt"] / max_audi) * 100 if max_audi > 0 else 0
+    is_highest = "highest-bar" if row["audiCnt"] == max_audi else ""
+    
+    html_chart += f"""
+    <div class="cinema-bar-wrapper">
+        <div class="bar-value">{row['audiCnt']:,}</div>
+        <div class="cinema-bar {is_highest}" style="height: {height_pct}%;"></div>
+        <div class="bar-label">{row['movieNm']}</div>
+    </div>
+    """
+
+# 폭죽(트로피) 효과를 내기 위한 숨겨진 오버레이 추가 (막대그래프와 같은 형제 노드에 위치)
+html_chart += """
+    <div class="fireworks-overlay">
+        <div class="trophy-particle p1">🏆</div>
+        <div class="trophy-particle p2">🏆</div>
+        <div class="trophy-particle p3">🏆</div>
+        <div class="trophy-particle p4">🏆</div>
+        <div class="trophy-particle p5">🏆</div>
+    </div>
+</div>
+"""
+
+st.markdown(html_chart, unsafe_allow_html=True)
+
+st.divider()
+
+# -----------------------------------------------------------------------------
+# 8. 박스오피스 전체 순위 표 출력
 # -----------------------------------------------------------------------------
 st.subheader("📋 전체 순위 목록")
 
@@ -237,84 +332,12 @@ display_df = df[display_cols].copy()
 display_df.columns = ["순위", "순위변동", "영화명", "개봉일", "관객수(명)", "누적관객(명)", "스크린수(개)"]
 
 formatted_df = display_df.copy()
-for col in ["관객수(명)", "누적관객(명)", "스크린수(개)"]:
-    formatted_df[col] = formatted_df[col].map("{:,}".format)
+formatted_df["관객수(명)"] = formatted_df["관객수(명)"].map("{:,}".format)
+formatted_df["누적관객(명)"] = formatted_df["누적관객(명)"].map("{:,}".format)
+formatted_df["스크린수(개)"] = formatted_df["스크린수(개)"].map("{:,}".format)
 
-st.dataframe(formatted_df, use_container_width=True, hide_index=True)
-
-# -----------------------------------------------------------------------------
-# 7. 1위 영화 마우스 호버 시 사이드 폭죽(트로피) 효과 Javascript 주입
-# -----------------------------------------------------------------------------
-top_movie_name_json = json.dumps(top_movie["movieNm"])
-
-js_code = f"""
-<script>
-    const parent = window.parent.document;
-    let isAnimating = false;
-    
-    function checkHover() {{
-        if (isAnimating) return;
-        const tooltips = parent.querySelectorAll('g.hovertext text');
-        let found = false;
-        tooltips.forEach(t => {{
-            if (t.textContent.includes({top_movie_name_json})) {{
-                found = true;
-            }}
-        }});
-        
-        if (found) {{
-            isAnimating = true;
-            showFireworks();
-            setTimeout(() => {{ isAnimating = false; }}, 2000); 
-        }}
-    }}
-    
-    setInterval(checkHover, 150);
-    
-    function showFireworks() {{
-        const leftTrophy = parent.createElement('div');
-        leftTrophy.innerHTML = "🏆";
-        leftTrophy.style.position = 'fixed';
-        leftTrophy.style.bottom = '-20%';
-        leftTrophy.style.left = '-10%';
-        leftTrophy.style.fontSize = '15vw';
-        leftTrophy.style.zIndex = '999999';
-        leftTrophy.style.pointerEvents = 'none';
-        leftTrophy.style.animation = 'shootLeftTrophy 1s cubic-bezier(0.25, 1, 0.5, 1) forwards';
-        
-        const rightTrophy = parent.createElement('div');
-        rightTrophy.innerHTML = "🏆";
-        rightTrophy.style.position = 'fixed';
-        rightTrophy.style.bottom = '-20%';
-        rightTrophy.style.right = '-10%';
-        rightTrophy.style.fontSize = '15vw';
-        rightTrophy.style.zIndex = '999999';
-        rightTrophy.style.pointerEvents = 'none';
-        rightTrophy.style.animation = 'shootRightTrophy 1s cubic-bezier(0.25, 1, 0.5, 1) forwards';
-        
-        const style = parent.createElement('style');
-        style.innerHTML = `
-            @keyframes shootLeftTrophy {{
-                0% {{ transform: translate(0, 0) rotate(-45deg) scale(0.5); opacity: 1; }}
-                50% {{ transform: translate(35vw, -60vh) rotate(360deg) scale(1.2); opacity: 1; }}
-                100% {{ transform: translate(45vw, -70vh) rotate(720deg) scale(1.5); opacity: 0; }}
-            }}
-            @keyframes shootRightTrophy {{
-                0% {{ transform: translate(0, 0) rotate(45deg) scale(0.5); opacity: 1; }}
-                50% {{ transform: translate(-35vw, -60vh) rotate(-360deg) scale(1.2); opacity: 1; }}
-                100% {{ transform: translate(-45vw, -70vh) rotate(-720deg) scale(1.5); opacity: 0; }}
-            }}
-        `;
-        parent.head.appendChild(style);
-        parent.body.appendChild(leftTrophy);
-        parent.body.appendChild(rightTrophy);
-        
-        setTimeout(() => {{
-            leftTrophy.remove();
-            rightTrophy.remove();
-            style.remove();
-        }}, 1100);
-    }}
-</script>
-"""
-components.html(js_code, height=0, width=0)
+st.dataframe(
+    formatted_df,
+    use_container_width=True,
+    hide_index=True
+)
