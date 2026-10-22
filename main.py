@@ -15,51 +15,60 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 영화관 테마 Custom CSS 주입 (다크 버건디 테마)
+# 영화관 AI 배경 이미지 적용 Custom CSS
 # -----------------------------------------------------------------------------
-st.markdown("""
+# 생성된 영화관 내부 이미지를 전체 배경으로 적용하고, 글자 읽기 편하게 반투명 오버레이를 씌웠습니다.
+BACKGROUND_IMAGE_URL = "https://lh3.googleusercontent.com/gg/AAY1a9qPThfL_0L-EaQ-pGz5Y1B52iG5bW_10285800603"
+
+st.markdown(f"""
 <style>
-    /* 전체 배경: 어두운 시네마 홀 느낌 */
-    .stApp {
-        background: linear-gradient(135deg, #0d0205 0%, #1a080c 50%, #050203 100%);
+    /* 전체 배경: 영화관 내부 이미지 및 어두운 오버레이 */
+    .stApp {{
+        background: linear-gradient(rgba(10, 5, 8, 0.85), rgba(10, 5, 8, 0.85)),
+                    url('{BACKGROUND_IMAGE_URL}');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
         color: #f1e4e6;
-    }
+    }}
     
-    /* 제목 및 헤더 스타일 */
-    h1, h2, h3 {
-        color: #f3ce72 !important;
+    /* 제목 및 주요 헤더 골드 톤 강조 */
+    h1, h2, h3 {{
+        color: #fce38a !important;
         font-family: 'Pretendard', sans-serif;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-    }
+        text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
+    }}
     
-    /* 카드 / 지표 상자 스타일링 */
-    div[data-testid="stMetric"] {
-        background: rgba(35, 12, 18, 0.7);
-        border: 1px solid #5a1e28;
+    /* 카드 / 지표 반투명 오버레이 패널 */
+    div[data-testid="stMetric"] {{
+        background: rgba(20, 10, 15, 0.75);
+        border: 1px solid rgba(252, 227, 138, 0.3);
         border-radius: 12px;
         padding: 15px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-    }
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+    }}
     
-    /* 데이터프레임/표 스타일 */
-    div[data-testid="stDataFrame"] {
-        background: rgba(20, 7, 10, 0.6);
+    /* 데이터프레임 표 스타일 */
+    div[data-testid="stDataFrame"] {{
+        background: rgba(15, 8, 12, 0.75);
         border-radius: 10px;
-        border: 1px solid #42161e;
-    }
+        border: 1px solid rgba(252, 227, 138, 0.2);
+        backdrop-filter: blur(5px);
+    }}
     
-    /* 버튼 및 인풋 위젯 스타일 */
-    .stDateInput > div {
-        background-color: #1f0b10 !important;
+    /* 날짜 선택 위젯 커스텀 */
+    .stDateInput > div {{
+        background-color: rgba(25, 12, 18, 0.85) !important;
         color: #ffffff !important;
         border-radius: 8px;
-        border: 1px solid #6b2330;
-    }
+        border: 1px solid #8c2a3c;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🍿 시네마 일별 박스오피스")
-st.caption("영화진흥위원회(KOBIS) Open API 기반 조회 앱")
+st.caption("영화진흥위원회(KOBIS) Open API 기반 박스오피스 조회 앱")
 
 # -----------------------------------------------------------------------------
 # 1. API 키 검증 (Streamlit Secrets)
@@ -97,7 +106,7 @@ display_date_str = selected_date.strftime("%Y년 %m월 %d일")
 st.markdown(f"### 🎟️ **{display_date_str}** 상영 현황")
 
 # -----------------------------------------------------------------------------
-# 3. KOBIS API 단일 날짜 호출 함수 및 데이터 가져오기
+# 3. KOBIS API 단일 날짜 호출 함수
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office(key: str, target_dt: str):
@@ -176,14 +185,11 @@ with col3:
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 6. Top 5 영화의 최근 7일간 일별 관객수 추이 그래프
+# 6. Top 5 영화의 최근 7일간 일별 관객수 추이 선 그래프
 # -----------------------------------------------------------------------------
 st.subheader("📈 상위 5개 영화의 최근 7일 관객수 추이")
 
-# 선택된 날짜 기준 상위 5개 영화 이름 가져오기
 top_5_titles = df.head(5)["movieNm"].tolist()
-
-# 선택일 포함 이전 7일간의 날짜 리스트 생성
 past_7_dates = [selected_date - datetime.timedelta(days=i) for i in range(6, -1, -1)]
 
 trend_records = []
@@ -198,7 +204,6 @@ for p_date in past_7_dates:
     
     if not p_df.empty and "movieNm" in p_df.columns:
         p_df["audiCnt"] = pd.to_numeric(p_df["audiCnt"], errors="coerce").fillna(0).astype(int)
-        # 선택된 Top 5 영화만 필터링
         filtered_p = p_df[p_df["movieNm"].isin(top_5_titles)]
         for _, row in filtered_p.iterrows():
             trend_records.append({
@@ -209,11 +214,8 @@ for p_date in past_7_dates:
 
 if trend_records:
     trend_df = pd.DataFrame(trend_records)
-    # 피벗 테이블 형태로 변환 (행: 날짜, 열: 영화명, 값: 관객수)
     pivot_trend = trend_df.pivot(index="날짜", columns="영화명", values="관객수").fillna(0)
     st.line_chart(pivot_trend)
-else:
-    st.info("💡 이전 날짜 추이 데이터를 불러오는 중입니다.")
 
 st.divider()
 
